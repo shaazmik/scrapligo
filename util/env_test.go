@@ -88,7 +88,7 @@ func TestGetEnvIntOrDefault(t *testing.T) {
 
 				if actual != testCase.expected {
 					t.Logf(
-						"actual and expected outputs do not match, got %q want %q",
+						"actual and expected outputs do not match, got '%d' want '%d'",
 						actual,
 						testCase.expected,
 					)

@@ -1,6 +1,6 @@
 module github.com/scrapli/scrapligo/v2
 
-go 1.25.0
+go 1.26.0
 
 tool (
 	github.com/daixiang0/gci
@@ -10,9 +10,9 @@ tool (
 
 require (
 	github.com/carlmontanari/difflibgo v0.0.0-20240227210139-93685b1c22ae
-	github.com/ebitengine/purego v0.11.0
+	github.com/ebitengine/purego v0.11.1
 	github.com/sirikothe/gotextfsm v1.2.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 )
 
 require (
