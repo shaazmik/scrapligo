@@ -121,22 +121,48 @@ func (c *Callback) check(b []byte, containsRe *regexp.Regexp) bool {
 // the regex to consume that character keeps ^, \A and word boundaries from treating
 // the cut in the buffer as the beginning of the original output.
 type callbackSearch struct {
-	callback *Callback
-	pattern  *regexp.Regexp
+	callback   *Callback
+	expression string
+	prepared   bool
+	pattern    *regexp.Regexp
 }
 
 func newCallbackSearch(cb *Callback) callbackSearch {
-	s := callbackSearch{callback: cb}
-	if cb.SearchDepth > 0 && cb.NotContains == "" && cb.ContainsRe != nil {
-		s.pattern = regexp.MustCompile(`(?s:.)(?:` + cb.ContainsRe.String() + `)`)
-	}
-
-	return s
+	return callbackSearch{callback: cb}
 }
 
-func (s callbackSearch) check(b []byte, previousLen int) bool {
+// boundedPattern is prepared lazily and refreshed if a callback changes its regex
+// between stages. Cache failures too: wrapping a valid regex can exceed regexp's
+// nesting limit, in which case the caller must keep full-segment matching.
+func (s *callbackSearch) boundedPattern() *regexp.Regexp {
+	if s.callback.ContainsRe == nil {
+		return nil
+	}
+
+	expression := s.callback.ContainsRe.String()
+	if !s.prepared || s.expression != expression {
+		s.expression = expression
+		s.prepared = true
+
+		pattern, err := regexp.Compile(`(?s:.)(?:` + expression + `)`)
+		if err != nil {
+			s.pattern = nil
+		} else {
+			s.pattern = pattern
+		}
+	}
+
+	return s.pattern
+}
+
+func (s *callbackSearch) check(b []byte, previousLen int) bool {
 	cb := s.callback
 	if cb.SearchDepth <= 0 || cb.NotContains != "" || previousLen <= cb.SearchDepth {
+		return cb.check(b, cb.ContainsRe)
+	}
+
+	pattern := s.boundedPattern()
+	if cb.ContainsRe != nil && pattern == nil {
 		return cb.check(b, cb.ContainsRe)
 	}
 
@@ -152,7 +178,7 @@ func (s callbackSearch) check(b []byte, previousLen int) bool {
 
 	_, size := utf8.DecodeLastRune(b[:start])
 
-	return cb.check(b[start-size:], s.pattern)
+	return cb.check(b[start-size:], pattern)
 }
 
 func (d *Driver) executeCallback(cb *Callback, b []byte) error {
@@ -272,7 +298,8 @@ func (d *Driver) readCallback(
 		b = append(b, rb...)
 		fb = append(fb, rb...)
 
-		for _, search := range searches {
+		for i := range searches {
+			search := &searches[i]
 			matched := search.check(b, previousLen)
 
 			if ctx.Err() != nil {
